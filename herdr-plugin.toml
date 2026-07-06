@@ -1,0 +1,77 @@
+id = "ntindle.herdr-resurrect"
+name = "herdr-resurrect"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "tmux-resurrect for herdr: snapshot the whole herd (workspaces, tabs, panes, cwd, running programs, agents) and bring it back after a crash or reboot."
+platforms = ["linux", "macos", "windows"]
+
+# --- Actions -----------------------------------------------------------------
+# Save a durable, versioned snapshot of the current session to disk.
+[[actions]]
+id = "save"
+title = "Resurrect: save snapshot"
+contexts = ["workspace"]
+command = ["node", "bin/save.js"]
+
+# Rebuild / rehydrate the session from the most recent snapshot.
+[[actions]]
+id = "restore"
+title = "Resurrect: restore last snapshot"
+contexts = ["workspace"]
+command = ["node", "bin/restore.js"]
+
+# Show what restore WOULD do, without touching anything.
+[[actions]]
+id = "restore-preview"
+title = "Resurrect: preview restore (dry run)"
+contexts = ["workspace"]
+command = ["node", "bin/restore.js", "--dry-run"]
+
+# List saved snapshots.
+[[actions]]
+id = "snapshots"
+title = "Resurrect: list snapshots"
+contexts = ["workspace"]
+command = ["node", "bin/list.js"]
+
+# --- Autosave ----------------------------------------------------------------
+# A long-lived pane that snapshots on a timer (tmux-continuum style).
+# Open it once and leave it running; interval is HERDR_RESURRECT_INTERVAL seconds.
+[[panes]]
+id = "autosave"
+title = "resurrect autosave"
+command = ["node", "bin/autosave.js"]
+placement = "split"
+
+# --- Event hooks: autosave (+ opt-in auto-restore on boot) -------------------
+# on-event.js debounces a snapshot on every shape change (<= 1 write / 20s), and,
+# when autoRestore is enabled in settings.json, performs a one-shot rehydrate on the
+# first event after a server (re)start (detected via the socket boot token).
+#
+# NOTE: herdr has no "server ready" plugin event today, and its manifest validator
+# rejects unknown event names, so we hook only real lifecycle events. If herdr adds a
+# `server.ready` event (see the upstream proposal in the README), add it here for a
+# cleaner boot trigger than piggybacking on the first pane.created/workspace.created.
+[[events]]
+on = "workspace.created"
+command = ["node", "bin/on-event.js"]
+
+[[events]]
+on = "workspace.closed"
+command = ["node", "bin/on-event.js"]
+
+[[events]]
+on = "pane.created"
+command = ["node", "bin/on-event.js"]
+
+[[events]]
+on = "pane.closed"
+command = ["node", "bin/on-event.js"]
+
+[[events]]
+on = "pane.exited"
+command = ["node", "bin/on-event.js"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["node", "bin/on-event.js"]

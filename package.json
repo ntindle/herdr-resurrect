@@ -1,0 +1,20 @@
+{
+  "name": "herdr-resurrect",
+  "version": "0.1.0",
+  "description": "tmux-resurrect for herdr: snapshot workspaces/tabs/panes/commands/agents and restore them after a crash or reboot.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  },
+  "bin": {
+    "herdr-resurrect-save": "bin/save.js",
+    "herdr-resurrect-restore": "bin/restore.js"
+  },
+  "scripts": {
+    "save": "node bin/save.js",
+    "restore": "node bin/restore.js",
+    "restore:dry": "node bin/restore.js --dry-run",
+    "list": "node bin/list.js"
+  },
+  "keywords": ["herdr", "herdr-plugin", "tmux-resurrect", "session", "restore", "crash-recovery"]
+}

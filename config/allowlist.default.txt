@@ -1,0 +1,80 @@
+# herdr-resurrect — programs that are safe to auto-relaunch on restore.
+#
+# One program name per line. Matching is case-insensitive and ignores a path and a
+# trailing .exe, so "nvim", "NVIM" and "/usr/bin/nvim" all match "nvim".
+# Lines starting with # are comments.
+#
+# Put a single line containing only  *  to restore EVERY foreground program
+# (aggressive — will re-run whatever was running, use with care).
+#
+# NOTE: AI agents (claude, copilot, codex, gemini, ...) are detected by herdr and
+# restored through the agent path automatically — you do not list them here.
+
+# --- editors / pagers ---
+vim
+nvim
+vi
+nano
+emacs
+helix
+hx
+less
+more
+tail
+bat
+
+# --- runtimes / REPLs ---
+node
+deno
+bun
+python
+python3
+ipython
+irb
+ruby
+php
+
+# --- dev servers / watchers / task runners ---
+npm
+pnpm
+yarn
+vite
+next
+nodemon
+webpack
+gulp
+grunt
+turbo
+tsc
+
+# --- build / language tooling ---
+make
+cargo
+go
+gradle
+mvn
+dotnet
+
+# --- monitors / TUIs ---
+top
+htop
+btop
+btm
+watch
+ctop
+lazygit
+lazydocker
+k9s
+
+# --- database / infra clients ---
+psql
+mysql
+redis-cli
+mongosh
+sqlite3
+docker
+kubectl
+
+# --- networking (comment out if you don't want auto-reconnect on restore) ---
+ssh
+mosh

@@ -1,0 +1,6 @@
+node_modules/
+*.log
+# local runtime state, if ever written under the repo
+.state/
+snapshots/
+last.json
