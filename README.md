@@ -180,18 +180,21 @@ Snapshots live under `$HERDR_PLUGIN_STATE_DIR/snapshots/`, with the newest also 
 
 ## Limitations (honest)
 
-- **Windows command capture:** herdr's `pane process-info` on Windows only surfaces
-  a program once it becomes the console's foreground process-group leader — AI
-  **agents do** (captured with full argv), but a plain shell child like `ping`,
-  `tail`, or a bare `node script.js` is reported as `powershell.exe` and therefore
-  **not captured**. On Linux/macOS (real ptys) ordinary foreground programs are
-  captured normally, like tmux-resurrect. Structure, cwd, and agents restore on all
-  platforms.
-- **Agent conversation resume** is best-effort: the plugin uses the agent CLI's own
-  resume/continue flags for known agents (claude, codex, gemini) and passes the native
-  `agent_session` ref when herdr reported one. Unknown agents, or agents with no
-  captured session ref, relaunch fresh (herdr's own `resume_agents_on_restore` may
-  still rejoin the conversation).
+- **Windows command capture** no longer relies on herdr's `pane process-info` alone
+  (which only surfaces the console's foreground process-group leader). When
+  process-info reports just the shell, the plugin walks the pane shell's **process
+  tree** (one bulk CIM query per snapshot) and captures the oldest real child — so
+  `node server.js`, `npm run dev`, `ping -t` etc. are captured on Windows too. The
+  program's own cwd isn't knowable this way (the pane's cwd is used), and the
+  cmdline is the OS-recorded one (a leading quoted absolute path is rewritten to
+  the program's short name at restore time so PowerShell executes it).
+- **Agent conversation resume** is best-effort but has two layers: the native
+  `agent_session` ref when herdr reported one, else the session id is recovered
+  from the **agent CLI's own session store** keyed by the pane's cwd (claude:
+  `~/.claude/projects/`, codex: `~/.codex/sessions/`, copilot:
+  `~/.copilot/session-state/`, cursor: `~/.cursor/chats/`). Resume/continue flags
+  are known for claude, codex, gemini, copilot, cursor; unknown agents relaunch
+  fresh (herdr's own `resume_agents_on_restore` may still rejoin the conversation).
 - **Layout geometry** is reconstructed from saved rects via sequential splits; simple
   rows/columns come back faithfully, deeply nested grids are approximated.
 - **Complex shell one-liners:** commands with unbalanced-looking brackets/quotes can
@@ -212,6 +215,8 @@ lib/snapshot.js          build + persist the enriched snapshot model
 lib/restore.js           the planner + executor
 lib/allowlist.js         which programs are safe to relaunch
 lib/agents.js            agent resume/continue command construction
+lib/agent-sessions.js    recover session ids from the agent CLIs' own stores
+lib/pstree.js            Windows process-tree capture (CIM) for pane commands
 lib/settings.js          settings.json (autoRestore, agentResume, …)
 lib/boot.js              per-boot detection + claim-once coordination
 lib/paths.js             state/config locations
