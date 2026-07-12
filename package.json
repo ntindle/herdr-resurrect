@@ -1,6 +1,6 @@
 {
   "name": "herdr-resurrect",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "tmux-resurrect for herdr: snapshot workspaces/tabs/panes/commands/agents and restore them after a crash or reboot.",
   "license": "MIT",
   "engines": {

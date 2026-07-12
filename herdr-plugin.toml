@@ -1,6 +1,6 @@
 id = "ntindle.herdr-resurrect"
 name = "herdr-resurrect"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.7.0"
 description = "tmux-resurrect for herdr: snapshot the whole herd (workspaces, tabs, panes, cwd, running programs, agents) and bring it back after a crash or reboot."
 platforms = ["linux", "macos", "windows"]

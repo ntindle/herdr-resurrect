@@ -180,11 +180,12 @@ Snapshots live under `$HERDR_PLUGIN_STATE_DIR/snapshots/`, with the newest also 
 
 ## Limitations (honest)
 
-- **Windows command capture** no longer relies on herdr's `pane process-info` alone
-  (which only surfaces the console's foreground process-group leader). When
+- **Command capture** no longer relies on herdr's `pane process-info` alone (which
+  on Windows only surfaces the console's foreground process-group leader). When
   process-info reports just the shell, the plugin walks the pane shell's **process
-  tree** (one bulk CIM query per snapshot) and captures the oldest real child — so
-  `node server.js`, `npm run dev`, `ping -t` etc. are captured on Windows too. The
+  tree** — one bulk query per snapshot (CIM on Windows, `ps` on Linux/macOS) — and
+  captures the oldest real child — so `node server.js`, `npm run dev`, `ping -t`
+  etc. are captured on Windows too, and the idle check is hardened everywhere. The
   program's own cwd isn't knowable this way (the pane's cwd is used), and the
   cmdline is the OS-recorded one (a leading quoted absolute path is rewritten to
   the program's short name at restore time so PowerShell executes it).
@@ -216,7 +217,7 @@ lib/restore.js           the planner + executor
 lib/allowlist.js         which programs are safe to relaunch
 lib/agents.js            agent resume/continue command construction
 lib/agent-sessions.js    recover session ids from the agent CLIs' own stores
-lib/pstree.js            Windows process-tree capture (CIM) for pane commands
+lib/pstree.js            process-tree capture (CIM on Windows, ps on Unix)
 lib/settings.js          settings.json (autoRestore, agentResume, …)
 lib/boot.js              per-boot detection + claim-once coordination
 lib/paths.js             state/config locations
