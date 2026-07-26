@@ -68,6 +68,7 @@ Run from the herdr command palette (or bind keys, below):
 | `Resurrect: list snapshots` | list saved snapshots |
 | `Resurrect: save this space as…` | save the **current workspace** as a named, reusable space |
 | `Resurrect: open saved space…` | fuzzy-pick a saved space and open it as a **new workspace** |
+| `Resurrect: delete saved space…` | fuzzy-pick a saved space and delete it (with confirm) |
 
 Invoke without keybindings via the CLI too:
 
@@ -124,10 +125,15 @@ you can keep as many as you like (and back them up / sync them). List or drive
 them from the CLI too:
 
 ```sh
-node "$HERDR_PLUGIN_ROOT/bin/list-spaces.js"              # human list
-node "$HERDR_PLUGIN_ROOT/bin/save-space.js"  --name foo   # save the focused workspace
-node "$HERDR_PLUGIN_ROOT/bin/open-space.js"  --name foo   # open it as a new workspace
+node "$HERDR_PLUGIN_ROOT/bin/list-spaces.js"               # human list
+node "$HERDR_PLUGIN_ROOT/bin/save-space.js"   --name foo   # save the focused workspace
+node "$HERDR_PLUGIN_ROOT/bin/open-space.js"   --name foo   # open it as a new workspace
+node "$HERDR_PLUGIN_ROOT/bin/delete-space.js" --name foo   # delete a saved space
 ```
+
+Opening a space reproduces the workspace faithfully: **tab names and on-screen
+order** are preserved, and **nested pane layouts** (e.g. a `1 / 2 / 1` stack) are
+rebuilt from the saved split tree rather than flattened.
 
 > The interactive overlays use a name prompt and `fzf`, so the two space actions
 > are macOS/Linux only (the underlying CLI works everywhere).

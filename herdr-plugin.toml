@@ -55,6 +55,14 @@ contexts = ["workspace"]
 platforms = ["linux", "macos"]
 command = ["bash", "open-space.sh"]
 
+# Fuzzy-pick a saved space and delete it (with confirmation).
+[[actions]]
+id = "delete-space"
+title = "Resurrect: delete saved space…"
+contexts = ["workspace"]
+platforms = ["linux", "macos"]
+command = ["bash", "delete-space.sh"]
+
 # --- Autosave ----------------------------------------------------------------
 # A long-lived pane that snapshots on a timer (tmux-continuum style).
 # Open it once and leave it running; interval is HERDR_RESURRECT_INTERVAL seconds.
@@ -78,6 +86,12 @@ id = "open-space-ui"
 title = "Open space"
 placement = "overlay"
 command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/open-space-ui.sh\""]
+
+[[panes]]
+id = "delete-space-ui"
+title = "Delete space"
+placement = "overlay"
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/delete-space-ui.sh\""]
 
 # --- Event hooks: autosave (+ opt-in auto-restore on boot) -------------------
 # on-event.js debounces a snapshot on every shape change (<= 1 write / 20s), and,
