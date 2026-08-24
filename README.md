@@ -66,6 +66,9 @@ Run from the herdr command palette (or bind keys, below):
 | `Resurrect: restore last snapshot` | rebuild / rehydrate from the newest snapshot |
 | `Resurrect: preview restore (dry run)` | show the plan, change nothing |
 | `Resurrect: list snapshots` | list saved snapshots |
+| `Resurrect: save this space as…` | save the **current workspace** as a named, reusable space |
+| `Resurrect: open saved space…` | fuzzy-pick a saved space and open it as a **new workspace** |
+| `Resurrect: delete saved space…` | fuzzy-pick a saved space and delete it (with confirm) |
 
 Invoke without keybindings via the CLI too:
 
@@ -90,7 +93,50 @@ key = "prefix+ctrl+r"
 type = "plugin_action"
 command = "ntindle.herdr-resurrect.restore"
 description = "resurrect: restore"
+
+# named spaces (below)
+[[keys.command]]
+key = "prefix+S"
+type = "plugin_action"
+command = "ntindle.herdr-resurrect.save-space"
+description = "resurrect: save this space as…"
+
+[[keys.command]]
+key = "prefix+O"
+type = "plugin_action"
+command = "ntindle.herdr-resurrect.open-space"
+description = "resurrect: open saved space…"
 ```
+
+### Saved spaces (named workspaces)
+
+Where snapshots are for crash recovery of the **whole herd**, *spaces* are a
+library of **named, reusable single-workspace layouts** — "my debugging setup",
+"client demo", "blog + notes" — that you save once and open whenever you want.
+
+- **`Resurrect: save this space as…`** prompts for a name (in an overlay) and
+  writes the **current** workspace — its tabs, panes, cwds, running commands, and
+  agents (with resume ids where available) — to one file per name.
+- **`Resurrect: open saved space…`** fuzzy-picks a saved space and rebuilds it as
+  a **brand-new** workspace, so opening the same space twice gives you two copies.
+
+Spaces live in `$HERDR_PLUGIN_STATE_DIR/spaces/<name>.json`, one file per space, so
+you can keep as many as you like (and back them up / sync them). List or drive
+them from the CLI too:
+
+```sh
+node "$HERDR_PLUGIN_ROOT/bin/list-spaces.js"               # human list
+node "$HERDR_PLUGIN_ROOT/bin/save-space.js"   --name foo   # save the focused workspace
+node "$HERDR_PLUGIN_ROOT/bin/open-space.js"   --name foo   # open it as a new workspace
+node "$HERDR_PLUGIN_ROOT/bin/delete-space.js" --name foo   # delete a saved space
+```
+
+Opening a space reproduces the workspace faithfully: **tab names and on-screen
+order** are preserved, and **nested pane layouts** (e.g. a `1 / 2 / 1` stack) are
+rebuilt from the saved split tree rather than flattened.
+
+> The interactive overlays use a name prompt and `fzf`, so the two space actions
+> are macOS/Linux only (the underlying CLI works everywhere).
 
 Then `herdr server reload-config`. (Prefix defaults to `ctrl+b`, tmux-style.)
 

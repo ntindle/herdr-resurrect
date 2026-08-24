@@ -34,6 +34,35 @@ title = "Resurrect: list snapshots"
 contexts = ["workspace"]
 command = ["node", "bin/list.js"]
 
+# --- Named spaces ------------------------------------------------------------
+# Save THIS workspace as a named, reusable "space", and open a saved space as a
+# brand-new workspace. Both use an overlay pane for the interactive bit (a name
+# prompt / an fzf picker), so they're macOS/Linux only, like any fzf UI.
+
+# Prompt for a name and save the current workspace.
+[[actions]]
+id = "save-space"
+title = "Resurrect: save this space as…"
+contexts = ["workspace"]
+platforms = ["linux", "macos"]
+command = ["bash", "save-space.sh"]
+
+# Fuzzy-pick a saved space and open it as a new workspace.
+[[actions]]
+id = "open-space"
+title = "Resurrect: open saved space…"
+contexts = ["workspace"]
+platforms = ["linux", "macos"]
+command = ["bash", "open-space.sh"]
+
+# Fuzzy-pick a saved space and delete it (with confirmation).
+[[actions]]
+id = "delete-space"
+title = "Resurrect: delete saved space…"
+contexts = ["workspace"]
+platforms = ["linux", "macos"]
+command = ["bash", "delete-space.sh"]
+
 # --- Autosave ----------------------------------------------------------------
 # A long-lived pane that snapshots on a timer (tmux-continuum style).
 # Open it once and leave it running; interval is HERDR_RESURRECT_INTERVAL seconds.
@@ -42,6 +71,27 @@ id = "autosave"
 title = "resurrect autosave"
 command = ["node", "bin/autosave.js"]
 placement = "split"
+
+# Interactive overlays for the named-spaces actions above. These get a real TTY
+# (unlike actions, which the server runs headless), so the name prompt and the
+# fzf picker work here.
+[[panes]]
+id = "save-space-ui"
+title = "Save space"
+placement = "overlay"
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/save-space-ui.sh\""]
+
+[[panes]]
+id = "open-space-ui"
+title = "Open space"
+placement = "overlay"
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/open-space-ui.sh\""]
+
+[[panes]]
+id = "delete-space-ui"
+title = "Delete space"
+placement = "overlay"
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/delete-space-ui.sh\""]
 
 # --- Event hooks: autosave (+ opt-in auto-restore on boot) -------------------
 # on-event.js debounces a snapshot on every shape change (<= 1 write / 20s), and,
