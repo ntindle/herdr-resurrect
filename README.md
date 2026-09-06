@@ -221,8 +221,21 @@ everything. Agents are handled automatically and are **not** listed here.
 | `HERDR_RESURRECT_DEBOUNCE` | `20000` | min ms between event-driven saves |
 | `HERDR_RESURRECT_KEEP` | `20` | snapshots to retain before pruning |
 
-Snapshots live under `$HERDR_PLUGIN_STATE_DIR/snapshots/`, with the newest also at
-`.../last.json`.
+Snapshots live under `$HERDR_PLUGIN_STATE_DIR/sessions/<session>/snapshots/`, with the
+newest also at `.../last.json`.
+
+### Named sessions
+
+Each herdr session (`herdr --session <name>`; the plain `herdr` is `default`) is its
+own server with its own workspaces, so each keeps its own snapshots, autosave debounce,
+and boot lock under `sessions/<name>/`. Save, restore, list, and auto-restore always
+act on the session the plugin was invoked from, so a work session and a personal one
+never overwrite or rehydrate each other's herd. The plugin tells sessions apart by the
+`HERDR_SOCKET_PATH` herdr hands every plugin process (`HERDR_SESSION` is used when run
+by hand outside herdr). Saved spaces are a shared library across all sessions.
+
+Snapshots written before this scoping existed are moved to `sessions/default/` on
+first run.
 
 ## Limitations (honest)
 
@@ -266,7 +279,7 @@ lib/agent-sessions.js    recover session ids from the agent CLIs' own stores
 lib/pstree.js            process-tree capture (CIM on Windows, ps on Unix)
 lib/settings.js          settings.json (autoRestore, agentResume, …)
 lib/boot.js              per-boot detection + claim-once coordination
-lib/paths.js             state/config locations
+lib/paths.js             state/config locations (snapshots scoped per herdr session)
 config/allowlist.default.txt   seed allowlist
 ```
 
