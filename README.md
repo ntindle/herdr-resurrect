@@ -42,7 +42,7 @@ plugin **rehydrates** those bare panes by re-running what was in them.
 ## Install
 
 Requires **Node.js** (used by the plugin scripts; no npm dependencies) and
-**herdr ≥ 0.7.0**.
+**herdr ≥ 0.7.5** (for plugin startup hooks).
 
 ```sh
 # from GitHub / the herdr plugin marketplace:
@@ -162,17 +162,26 @@ running it twice does nothing the second time.
 
 ### Auto-restore on startup (opt-in)
 
-Set `autoRestore: true` in `settings.json` (see Configuration) to skip step 2 — the
-plugin then rehydrates automatically the first time herdr fires an event after a
-server (re)start, so a crash + relaunch brings your commands and agents back on its
-own.
+Set `autoRestore: true` in `settings.json` (see Configuration) to skip step 2 - the
+plugin then rehydrates automatically every time the herdr server (re)starts, so a
+crash + relaunch brings your commands and agents back on its own.
 
-How it works: herdr has no "server ready" plugin event yet, so the plugin detects a
-fresh boot from herdr's socket file (rewritten on every start) and lets the **first**
-event handler claim that boot, rehydrate once, and stand the others down — reading the
-good pre-crash snapshot *before* autosave can overwrite it. It's off by default so it
-never surprises you (tmux-continuum's auto-restore is opt-in too). A first-class
-`server.ready` event would be cleaner — see **Upstream** below.
+How it works: the plugin registers a herdr `[[startup]]` hook, which herdr runs once
+after it has restored the session shape and its API socket is ready (this is why
+herdr 0.8.0+ is required). The hook reads the pre-crash snapshot, waits
+`autoRestoreSettleMs` for the restored shells to settle, and rehydrates the panes that
+are idle - polling briefly for a pane whose shell is still initializing, and leaving
+alone any pane that is already running something. Event-driven autosave stands down
+while that runs, so the good snapshot can't be overwritten with bare-shell state
+first. herdr also runs startup hooks after a live handoff (`herdr update --handoff`);
+restore is idempotent, so panes that kept their processes are skipped. It's off by
+default so it never surprises you (tmux-continuum's auto-restore is opt-in too).
+
+See what the last boot did with:
+
+```sh
+herdr plugin log list --plugin ntindle.herdr-resurrect
+```
 
 ### Agent resume
 
@@ -201,8 +210,8 @@ Override per agent via `agentResumeCommands` in `settings.json`.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `autoRestore` | `false` | rehydrate automatically on the first event after a server (re)start |
-| `autoRestoreSettleMs` | `2500` | wait this long after the first boot event before rehydrating |
+| `autoRestore` | `false` | rehydrate automatically from herdr's startup hook after a server (re)start |
+| `autoRestoreSettleMs` | `2500` | wait this long after the startup hook fires before rehydrating |
 | `agentResume` | `true` | use agent CLI resume/continue flags when relaunching agents |
 | `agentResumeCommands` | `{}` | per-agent overrides, e.g. `{ "claude": { "continue": "--continue" } }` |
 
@@ -251,9 +260,10 @@ Snapshots live under `$HERDR_PLUGIN_STATE_DIR/snapshots/`, with the newest also 
 ## Layout
 
 ```
-herdr-plugin.toml        manifest: actions, autosave pane, event hooks
+herdr-plugin.toml        manifest: actions, autosave pane, startup + event hooks
 bin/save.js              snapshot now (manual action + autosave pane)
-bin/on-event.js          event handler: debounced autosave + opt-in boot auto-restore
+bin/on-startup.js        startup hook: opt-in auto-restore after a server (re)start
+bin/on-event.js          event handler: debounced autosave
 bin/restore.js           rehydrate / recreate from a snapshot
 bin/list.js              list saved snapshots
 bin/autosave.js          continuum-style timer loop (runs in a pane)
@@ -265,20 +275,10 @@ lib/agents.js            agent resume/continue command construction
 lib/agent-sessions.js    recover session ids from the agent CLIs' own stores
 lib/pstree.js            process-tree capture (CIM on Windows, ps on Unix)
 lib/settings.js          settings.json (autoRestore, agentResume, …)
-lib/boot.js              per-boot detection + claim-once coordination
+lib/boot.js              boot lock: event hooks stand down while the startup hook restores
 lib/paths.js             state/config locations
 config/allowlist.default.txt   seed allowlist
 ```
-
-## Upstream: a `server.ready` event for herdr
-
-Auto-restore currently piggybacks on the first `pane.created`/`workspace.created`
-after a restart, guarded by a socket-derived boot token. A first-class **`server.ready`**
-plugin event (fired once, after the server restores the session) would be a cleaner,
-race-free trigger. That's a new-API change, and herdr's `CONTRIBUTING.md` asks for a
-**GitHub Discussion first** (not a cold PR) for new features — so this is proposed
-there rather than pushed as a surprise PR. The implementation is small and localized
-(emit once at the top of `HeadlessServer::run`, add the kind to `PLUGIN_HOOK_EVENT_KINDS`).
 
 ## License
 

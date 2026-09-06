@@ -1,7 +1,7 @@
 id = "ntindle.herdr-resurrect"
 name = "herdr-resurrect"
 version = "0.2.0"
-min_herdr_version = "0.7.0"
+min_herdr_version = "0.7.5"
 description = "tmux-resurrect for herdr: snapshot the whole herd (workspaces, tabs, panes, cwd, running programs, agents) and bring it back after a crash or reboot."
 platforms = ["linux", "macos", "windows"]
 
@@ -93,15 +93,16 @@ title = "Delete space"
 placement = "overlay"
 command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/delete-space-ui.sh\""]
 
-# --- Event hooks: autosave (+ opt-in auto-restore on boot) -------------------
-# on-event.js debounces a snapshot on every shape change (<= 1 write / 20s), and,
-# when autoRestore is enabled in settings.json, performs a one-shot rehydrate on the
-# first event after a server (re)start (detected via the socket boot token).
-#
-# NOTE: herdr has no "server ready" plugin event today, and its manifest validator
-# rejects unknown event names, so we hook only real lifecycle events. If herdr adds a
-# `server.ready` event (see the upstream proposal in the README), add it here for a
-# cleaner boot trigger than piggybacking on the first pane.created/workspace.created.
+# --- Startup hook: opt-in auto-restore on boot --------------------------------
+# herdr runs this once after it has restored the session shape and its API socket is
+# ready (and again after a live handoff). When autoRestore is enabled in
+# settings.json, on-startup.js rehydrates the restored panes from the newest snapshot.
+[[startup]]
+command = ["node", "bin/on-startup.js"]
+
+# --- Event hooks: debounced autosave -------------------------------------------
+# on-event.js snapshots on every shape change (<= 1 write / 20s) and stands down
+# while the startup hook is still applying the pre-crash snapshot.
 [[events]]
 on = "workspace.created"
 command = ["node", "bin/on-event.js"]
