@@ -133,7 +133,10 @@ node "$HERDR_PLUGIN_ROOT/bin/delete-space.js" --name foo   # delete a saved spac
 
 Opening a space reproduces the workspace faithfully: **tab names and on-screen
 order** are preserved, and **nested pane layouts** (e.g. a `1 / 2 / 1` stack) are
-rebuilt from the saved split tree rather than flattened.
+rebuilt from the saved split tree rather than flattened. A space saved from a
+linked Git worktree reopens nested under its repo's parent workspace; herdr keeps
+one workspace per checkout, so opening it again rehydrates that workspace instead
+of making a second copy (see **Git worktree workspaces** below).
 
 > The interactive overlays use a name prompt and `fzf`, so the two space actions
 > are macOS/Linux only (the underlying CLI works everywhere).
@@ -194,6 +197,21 @@ Override per agent via `agentResumeCommands` in `settings.json`.
 | pick file | `--file <path>` | restore a specific snapshot instead of the newest |
 
 (CLI form, e.g. `node bin/restore.js --recreate --dry-run`, when running scripts directly.)
+
+### Git worktree workspaces
+
+herdr nests a workspace opened from a Git worktree (`herdr worktree create` /
+`open`) under the workspace holding the repo's main checkout. That relation is
+provenance herdr attaches only through its worktree commands, so a plain
+`workspace create` at the same path comes back as a root-level workspace.
+
+Snapshots and spaces keep that provenance, and recreate rebuilds it: the parent
+workspace is created first (even if it was listed after a child), then each
+linked worktree is opened with `herdr worktree open` under the live parent, or
+from the repo root when no parent is open, in which case herdr finds or creates
+one. If the checkout is already open as a workspace, that workspace is
+rehydrated instead of duplicated. If git no longer lists the checkout, the
+workspace falls back to a plain one at the saved directory (logged as `warn`).
 
 ## Configuration
 
@@ -259,7 +277,7 @@ bin/list.js              list saved snapshots
 bin/autosave.js          continuum-style timer loop (runs in a pane)
 lib/herdr.js             thin wrapper over the herdr CLI (JSON in/out, retry)
 lib/snapshot.js          build + persist the enriched snapshot model
-lib/restore.js           the planner + executor
+lib/restore.js           the planner + executor (worktree-aware recreate)
 lib/allowlist.js         which programs are safe to relaunch
 lib/agents.js            agent resume/continue command construction
 lib/agent-sessions.js    recover session ids from the agent CLIs' own stores
