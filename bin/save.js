@@ -5,6 +5,7 @@
 const fs = require('fs');
 const { save } = require('../lib/snapshot');
 const { LAST } = require('../lib/paths');
+const notify = require('../lib/notify');
 
 const isEvent = process.argv.includes('--event');
 const DEBOUNCE_MS = Number(process.env.HERDR_RESURRECT_DEBOUNCE || 20000);
@@ -25,7 +26,9 @@ try {
   console.log(
     `herdr-resurrect: saved ${r.panes} pane(s) — ${r.commands} command(s), ${r.agents} agent(s)\n  -> ${r.file}`
   );
+  notify.saved(r, { auto: isEvent });
 } catch (e) {
   console.error(`herdr-resurrect save failed: ${e.message}`);
+  notify.saveFailed(e, { auto: isEvent });
   process.exit(1);
 }

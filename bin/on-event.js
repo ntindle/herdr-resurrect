@@ -11,6 +11,7 @@ const fs = require('fs');
 const settings = require('../lib/settings').load();
 const boot = require('../lib/boot');
 const { save } = require('../lib/snapshot');
+const notify = require('../lib/notify');
 const { loadModel, restore } = require('../lib/restore');
 const { LAST } = require('../lib/paths');
 
@@ -18,7 +19,13 @@ const DEBOUNCE_MS = Number(process.env.HERDR_RESURRECT_DEBOUNCE || 20000);
 
 function autosaveDebounced() {
   try { if (Date.now() - fs.statSync(LAST).mtimeMs < DEBOUNCE_MS) return; } catch { /* no last.json yet */ }
-  try { save(); } catch (e) { console.error('herdr-resurrect autosave failed:', e.message); }
+  let r;
+  try { r = save(); } catch (e) {
+    console.error('herdr-resurrect autosave failed:', e.message);
+    notify.saveFailed(e, { auto: true });
+    return;
+  }
+  notify.saved(r, { auto: true });
 }
 
 async function main() {
@@ -42,8 +49,10 @@ async function main() {
     try {
       const res = restore(model, { mode: 'rehydrate', log: (l) => console.log('[auto-restore] ' + l) });
       console.log(`herdr-resurrect: auto-restore ran ${res.actions.length} action(s) on boot`);
+      notify.restored(res, { auto: true });
     } catch (e) {
       console.error('herdr-resurrect auto-restore failed:', e.message);
+      notify.restoreFailed(e, { auto: true });
     }
   }
   boot.markDone(token);
