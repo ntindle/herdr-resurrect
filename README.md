@@ -205,8 +205,30 @@ Override per agent via `agentResumeCommands` in `settings.json`.
 | `autoRestoreSettleMs` | `2500` | wait this long after the first boot event before rehydrating |
 | `agentResume` | `true` | use agent CLI resume/continue flags when relaunching agents |
 | `agentResumeCommands` | `{}` | per-agent overrides, e.g. `{ "claude": { "continue": "--continue" } }` |
+| `notify` | all `false` | herdr toasts per trigger: `{ "onSave": …, "onAutoSave": …, "onRestore": … }` (see Toasts) |
 
 `HERDR_RESURRECT_AUTO_RESTORE=1` overrides `autoRestore` without editing the file.
+
+**Toasts** - actions and hooks run headless on the server, so a herdr toast is the
+only on-screen feedback they can give. All three are off by default; turn on the ones
+you want in `settings.json`:
+
+```json
+"notify": { "onSave": true, "onAutoSave": false, "onRestore": true }
+```
+
+| Key | Fires for | Toasts |
+| --- | --- | --- |
+| `onSave` | the `save snapshot` action | `Resurrect: snapshot saved` / `snapshot failed` |
+| `onAutoSave` | event-driven and timer autosaves | `Resurrect: autosaved` / `autosave failed` |
+| `onRestore` | the `restore` action and boot auto-restore | `Resurrect: restore completed` / `restore failed` |
+
+Dry runs never toast. Inside a named session (`herdr --session <name>`) every title
+ends with `(session: <name>)`, so toasts from several sessions can be told apart.
+Toasts go through herdr's own `notification.show`, so they
+follow your `[ui.toast]` settings (position, terminal or system delivery). A toast
+that cannot be shown never fails the save or restore - the reason is logged next to
+the result line instead.
 
 **Allowlist** — which non-agent programs get relaunched. Editable copy is created
 on first run at `$HERDR_PLUGIN_CONFIG_DIR/allowlist.txt` (seeded from
@@ -265,6 +287,7 @@ lib/agents.js            agent resume/continue command construction
 lib/agent-sessions.js    recover session ids from the agent CLIs' own stores
 lib/pstree.js            process-tree capture (CIM on Windows, ps on Unix)
 lib/settings.js          settings.json (autoRestore, agentResume, …)
+lib/notify.js            herdr toasts for save / autosave / restore results
 lib/boot.js              per-boot detection + claim-once coordination
 lib/paths.js             state/config locations
 config/allowlist.default.txt   seed allowlist

@@ -7,6 +7,7 @@
 //   --file <path>        restore a specific snapshot (default: last.json)
 // Default mode is "auto": rehydrate workspaces that already exist, recreate the rest.
 const { loadModel, restore } = require('../lib/restore');
+const notify = require('../lib/notify');
 
 function parseArgs(argv) {
   const o = { mode: 'auto', dryRun: false, file: null };
@@ -21,8 +22,8 @@ function parseArgs(argv) {
   return o;
 }
 
+const o = parseArgs(process.argv.slice(2));
 try {
-  const o = parseArgs(process.argv.slice(2));
   const model = loadModel(o.file);
   const when = new Date(model.saved_at).toLocaleString();
   console.log(
@@ -35,7 +36,9 @@ try {
     res.steps.map((s) => `#${s.number}:${s.mode}`).join(' ')
   );
   if (o.dryRun) console.log('Re-run without --dry-run to apply.');
+  else notify.restored(res);
 } catch (e) {
   console.error(`herdr-resurrect restore failed: ${e.message}`);
+  if (!o.dryRun) notify.restoreFailed(e);
   process.exit(1);
 }
