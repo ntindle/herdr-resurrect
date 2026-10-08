@@ -6,6 +6,10 @@
 // fakes. That makes even non-dry restore() runs fully offline: writes land in the
 // returned `calls` list instead of a live herdr session.
 const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawnSync } = require('child_process');
 const herdr = require('../lib/herdr');
 const pstree = require('../lib/pstree');
 
@@ -71,4 +75,49 @@ const BUSY = {
   foreground_processes: [{ pid: 100, name: 'zsh' }, { pid: 200, name: 'nvim' }],
 };
 
-module.exports = { assert, test, finish, stubHerdr, named, actionsOf, BUSY };
+// Throwaway plugin state/config, with test/fake-herdr.js standing in for the herdr
+// CLI, for running bin/ scripts as real subprocesses. The fake logs every call it
+// receives (see calls()). With no HERDR_SOCKET_PATH or HERDR_SESSION in the
+// child's env, scripts act on the default session.
+function fakeHerdrEnv() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hr-fake-'));
+  const state = path.join(dir, 'state');
+  const config = path.join(dir, 'config');
+  const sessionDir = path.join(state, 'sessions', 'default');
+  const snapshots = path.join(sessionDir, 'snapshots');
+  fs.mkdirSync(snapshots, { recursive: true });
+  fs.mkdirSync(config, { recursive: true });
+
+  // On Windows CreateProcess can't run a .js via shebang; go through a .cmd shim.
+  const fake = path.join(__dirname, 'fake-herdr.js');
+  let bin = fake;
+  if (process.platform === 'win32') {
+    bin = path.join(dir, 'fake-herdr.cmd');
+    fs.writeFileSync(bin, `@node "${fake}" %*\r\n`);
+  }
+  const fakeLog = path.join(dir, 'herdr-calls.log');
+  const fixture = path.join(dir, 'live.json');
+
+  return {
+    config,
+    sessionDir,
+    snapshots,
+    calls() { try { return fs.readFileSync(fakeLog, 'utf8'); } catch { return ''; } },
+    // liveFixture: { snapshot, tabs, panes }, served by the fake herdr.
+    run(script, liveFixture, spawnOpts = {}) {
+      fs.writeFileSync(fixture, JSON.stringify(liveFixture));
+      const env = { ...process.env };
+      for (const k of Object.keys(env)) if (k.startsWith('HERDR_')) delete env[k];
+      Object.assign(env, {
+        HERDR_PLUGIN_STATE_DIR: state,
+        HERDR_PLUGIN_CONFIG_DIR: config,
+        HERDR_BIN_PATH: bin,
+        HERDR_FAKE_FIXTURE: fixture,
+        HERDR_FAKE_LOG: fakeLog,
+      });
+      return spawnSync(process.execPath, [script], { encoding: 'utf8', env, ...spawnOpts });
+    },
+  };
+}
+
+module.exports = { assert, test, finish, stubHerdr, named, actionsOf, BUSY, fakeHerdrEnv };

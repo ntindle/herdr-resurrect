@@ -168,29 +168,26 @@ Set `autoRestore: true` in `settings.json` (see Configuration) to skip step 2 �
 plugin then rehydrates automatically after every server start, so a crash +
 relaunch brings your commands and agents back on its own.
 
-How it works: herdr ≥ 0.7.5 runs each plugin's `[[startup]]` hook once, after the
-native session restore finishes and the API socket is ready. The hook
-(`bin/on-startup.js`) reads the pre-boot snapshot *before* autosave can overwrite
-it, then dry-runs the plan against the session herdr just rebuilt and measures
-**agreement**: the share of panes present on both sides — matched by id where
-herdr preserved them, else by workspace/tab position — over whichever side is
-larger, so both a snapshot bigger than the session (panes were closed after the
-save died) and one smaller (the session grew) score low. Below `minAgreement`
-(default `0.5`) the snapshot predates your current layout — the signature of an
-autosave that died before shutdown — and auto-restore refuses it, printing the
-per-pane plan and the exact snapshot file to apply manually. The check compares
-structure, not clocks, so it is immune to how long the machine was off and to
-quiet sessions; a changed directory alone never blocks the restore (that pane's
-fill is skipped individually instead). Above the threshold it fills idle panes
-only: auto-restore never creates panes, tabs, or workspaces. A restored shell
-that still reads as busy because its rc file is loading gets up to 2 s, shared
-across the whole run, to reach its prompt. While the hook runs, both the event
-autosave and the autosave pane stand down so neither can overwrite the snapshot
-mid-restore. Startup hooks also fire on live handoff (in-place server upgrade);
-that's a natural no-op — the save agrees fully, every pane is still running its
-program (costing at most that one 2 s wait), nothing is created, and focus is
-left alone when nothing ran. It's off by default so it never
-surprises you (tmux-continuum's auto-restore is opt-in too).
+How it works: herdr ≥ 0.7.5 runs each plugin's `[[startup]]` hook once, after its
+native session restore finishes. The hook (`bin/on-startup.js`):
+
+- **Reads the pre-boot snapshot first.** Event autosave and the autosave pane stand
+  down until the restore is done, so neither can overwrite it mid-restore.
+- **Checks that the snapshot still fits.** A dry run measures **agreement**: the share
+  of panes present in both the snapshot and the restored session (matched by id where
+  herdr preserved them, else by position), over whichever side has more. Below
+  `minAgreement` (default `0.5`) the snapshot predates your current layout, typically
+  because autosave died before shutdown. The hook then refuses it and prints the plan
+  and the snapshot file to apply by hand. This compares structure, not timestamps, so
+  downtime length and quiet sessions don't matter.
+- **Fills idle panes only.** It never creates panes, tabs, or workspaces, and skips a
+  pane whose directory changed. A shell still loading its rc file gets up to 2 s
+  (shared by the whole run) to reach its prompt.
+
+Startup hooks also fire on live handoff (in-place server upgrade). That's a no-op:
+every pane is still running its program, so nothing runs and focus stays put. It's
+off by default so it never surprises you (tmux-continuum's auto-restore is opt-in
+too).
 
 ### Agent resume
 
@@ -227,8 +224,8 @@ surprises you (tmux-continuum's auto-restore is opt-in too).
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `autoRestore` | `false` | rehydrate automatically from the `[[startup]]` hook after each server start |
-| `autoRestoreSettleMs` | `2500` | how long the startup hook waits before rehydrating — the agreement check runs after this wait, so a value too short for a slow machine can misread a half-materialized session as divergence |
-| `minAgreement` | `0.5` | share (0–1) of panes that must be present on both sides (snapshot and restored session) before auto-restore proceeds; below it the snapshot is refused as out-of-date. `0` disables; anything not a number in 0–1 falls back to the default (so `50` is not read as 50%). Manual restores are unaffected. |
+| `autoRestoreSettleMs` | `2500` | how long the startup hook waits before checking and rehydrating; too short on a slow machine and a half-restored session reads as divergence |
+| `minAgreement` | `0.5` | share (0–1) of panes present in both the snapshot and the restored session for auto-restore to proceed; below it the snapshot is refused. `0` disables; values outside 0–1 fall back to the default (`50` is not 50%). Manual restores are unaffected. |
 | `agentResume` | `true` | `true`: relaunch agent panes with the agent CLI's resume/continue flags; `false`: never touch agent panes (native `resume_agents_on_restore` owns them) |
 | `agentResumeCommands` | `{}` | per-agent overrides, e.g. `{ "claude": { "continue": "--continue" } }` |
 | `notify` | all `false` | herdr toasts per trigger: `{ "onSave": …, "onAutoSave": …, "onRestore": … }` (see Toasts) |
@@ -280,7 +277,8 @@ and restore-in-progress marker under `sessions/<name>/`. Save, restore, list, an
 auto-restore always act on the session the plugin was invoked from, so a work session
 and a personal one never overwrite or rehydrate each other's herd. The plugin tells
 sessions apart by the `HERDR_SOCKET_PATH` herdr hands every plugin process
-(`HERDR_SESSION` is used when run by hand outside herdr). Saved spaces are a shared library across all sessions.
+(`HERDR_SESSION` is used when run by hand outside herdr). Saved spaces are a shared
+library across all sessions.
 
 Snapshots written before this scoping existed are moved to `sessions/default/` on
 first run.
@@ -288,20 +286,16 @@ first run.
 ## Limitations (honest)
 
 - **Auto-restore trusts the snapshot only so far.** If autosave stopped before
-  shutdown (the plugin's event handlers can die, e.g. under herdr's concurrent
-  plugin-command limit), the last save no longer matches the session herdr just
-  restored. The agreement guard (`minAgreement`) detects exactly that — too few
-  panes present on both sides — and refuses to rehydrate a layout you had
-  already dismantled; the refused snapshot stays in `sessions/<session>/snapshots/`
-  (until pruning rotates it out after `HERDR_RESURRECT_KEEP` newer saves) and the refusal
-  message names its exact path. What no guard can
-  detect is a program you deliberately quit in a pane that still exists: to the
-  plugin that is indistinguishable from a program lost to the shutdown, so it
-  gets relaunched (the tmux-resurrect contract; bounded by the allowlist).
-- **Rehydrate never rebuilds missing structure.** Panes/tabs/workspaces that no
-  longer exist are skipped (logged), by design — herdr's native restore owns the
-  layout. Use the manual restore's `auto`/`--recreate` modes for true from-scratch
-  crash recovery.
+  shutdown (event handlers can die, e.g. under herdr's concurrent plugin-command
+  limit), the last save no longer matches the restored session. The agreement guard
+  refuses such a snapshot; it stays in `sessions/<session>/snapshots/` until pruning
+  rotates it out after `HERDR_RESURRECT_KEEP` newer saves, and the refusal names its
+  path. No guard can detect a program you deliberately quit in a pane that still
+  exists: it looks the same as one lost to the shutdown, so it gets relaunched (the
+  tmux-resurrect contract; bounded by the allowlist).
+- **Rehydrate never rebuilds missing structure.** Missing panes, tabs, and
+  workspaces are skipped and logged; herdr's native restore owns the layout. Use the
+  manual restore's `auto`/`--recreate` modes for from-scratch crash recovery.
 - **Command capture** no longer relies on herdr's `pane process-info` alone (which
   on Windows only surfaces the console's foreground process-group leader). When
   process-info reports just the shell, the plugin walks the pane shell's **process
@@ -348,17 +342,6 @@ lib/paths.js             state/config locations (snapshots scoped per herdr sess
 config/allowlist.default.txt   seed allowlist
 test/                    plain-Node tests (npm test; no live server needed)
 ```
-
-## Upstream: the `server.ready` ask — satisfied in herdr 0.7.5
-
-Earlier versions of this plugin piggybacked auto-restore on the first
-`pane.created`/`workspace.created` event after a restart, guarded by a
-socket-derived boot token, and proposed a first-class "server ready" trigger
-upstream (herdrdev/herdr discussion
-[#1100](https://github.com/herdrdev/herdr/discussions/1100)). herdr 0.7.5 shipped
-exactly that as one-shot plugin **`[[startup]]`** hooks — run once per enabled
-plugin after the session is restored and the socket is ready — and this plugin now
-uses them, which is why it requires 0.7.5.
 
 ## License
 

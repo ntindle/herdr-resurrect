@@ -94,13 +94,8 @@ placement = "overlay"
 command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/delete-space-ui.sh\""]
 
 # --- Startup hook: opt-in auto-restore (herdr >= 0.7.5) ----------------------
-# Runs once, after herdr has restored the session and its API socket is ready —
-# exactly the "server ready" trigger auto-restore needs. The hook may refuse the
-# snapshot outright when it no longer matches the restored session (minAgreement
-# in settings.json). It also fires on live handoff (in-place server upgrade);
-# fill-only rehydrate makes that a no-op (every pane is busy, nothing is
-# created, focus stays put when nothing ran). Enable via autoRestore in
-# settings.json (off by default).
+# Runs once after herdr has restored the session (and again on live handoff, where
+# it's a no-op). Enable via autoRestore in settings.json (off by default).
 [[startup]]
 command = ["node", "bin/on-startup.js"]
 

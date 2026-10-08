@@ -4,17 +4,14 @@
 // herdr has restored the session and its API socket is ready. Owns the opt-in
 // auto-restore; bin/on-event.js is autosave-only.
 //
-// Guard: before executing, the plan is dry-run against the natively restored
-// session and refused when too few saved panes still map onto it (see
-// minAgreement in settings). Structure, not clocks: a snapshot from a dead
-// autosave diverges from the layout herdr just rebuilt regardless of how long
-// the machine was off, while a quiet-but-healthy save agrees 100% even after a
-// week of downtime.
+// Guard: the plan is dry-run against the natively restored session first and
+// refused when too few panes agree (minAgreement in settings; agreementOf in
+// lib/restore.js). A snapshot from a dead autosave diverges from the layout herdr
+// just rebuilt however long the machine was off; a healthy one agrees fully.
 //
-// Startup hooks also fire on live handoff (in-place server upgrade), where the
-// session was never lost. That case must be — and is — a no-op: the save agrees
-// fully, fill-only rehydrate finds every pane still running its program, nothing
-// is created, and focus is only moved when at least one action actually ran.
+// Startup hooks also fire on live handoff (in-place server upgrade). That must be
+// a no-op, and is: every pane is still running its program, so fill-only
+// rehydrate runs nothing, and focus only moves when something ran.
 const fs = require('fs');
 const path = require('path');
 const settings = require('../lib/settings');
@@ -53,19 +50,11 @@ async function main() {
     gate.start(); // refresh the marker — the settle sleep may consume much of its max age
 
     const min = settings.sanitizeMinAgreement(cfg.minAgreement);
-    // An empty snapshot has nothing to mis-restore — the guard only judges
-    // snapshots that would actually fill something.
     if (min > 0) {
       const planLines = [];
       const t = restore(model, { mode: 'rehydrate', dryRun: true, log: (l) => planLines.push(l) }).tally;
-      // Presence, both ways: a cwd mismatch still means the pane exists (its fill
-      // is skipped per-pane anyway — a plain `cd` never triggers an autosave, so
-      // it must not veto the whole restore), while a live session much larger
-      // than the snapshot means the save predates real growth (the mirror image
-      // of the dismantled-layout incident).
-      const present = t.paired + t.cwdMismatch;
-      const denom = Math.max(t.savedPanes, t.livePanes);
-      const agreement = denom ? present / denom : 1;
+      const { agreement } = t;
+      // An empty snapshot has nothing to mis-restore, so it is never refused.
       if (t.savedPanes > 0 && agreement < min) {
         const why = [];
         if (t.missingWorkspace) why.push(`${t.missingWorkspace} pane(s) in missing workspaces`);
@@ -92,7 +81,6 @@ async function main() {
       }
     }
 
-    gate.start(); // refresh again: the dry run above may have been slow
     const res = restore(model, {
       mode: 'rehydrate',
       waitIdleMs: WAIT_IDLE_MS,

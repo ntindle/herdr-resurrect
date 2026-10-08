@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 // Debounced autosave on herdr lifecycle events: at most one write per
-// HERDR_RESURRECT_DEBOUNCE ms, keyed on last.json's mtime. Auto-restore lives in
-// bin/on-startup.js; the only coupling left is the gate — while a startup restore
-// is in flight, autosave must not overwrite the pre-boot snapshot with the
-// freshly-restored bare-shell state. The gate self-heals (a stale marker is
-// deleted and ignored), so autosave can never be suppressed permanently.
+// HERDR_RESURRECT_DEBOUNCE ms, keyed on last.json's mtime. Stands down while
+// bin/on-startup.js restores (lib/gate.js), so the pre-boot snapshot survives.
 const fs = require('fs');
 const gate = require('../lib/gate');
 const { save } = require('../lib/snapshot');

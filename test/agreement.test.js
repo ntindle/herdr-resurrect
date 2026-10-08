@@ -36,7 +36,7 @@ test('tally: the incident shape scores 1/4 (missing panes counted, live side siz
   const t = restore(m, { mode: 'rehydrate' }).tally;
   assert.deepStrictEqual(t, {
     savedPanes: 4, paired: 1, missingWorkspace: 0, missingTab: 0, missingPane: 3,
-    cwdMismatch: 0, livePanes: 1, ratio: 0.25,
+    cwdMismatch: 0, livePanes: 1, agreement: 0.25,
   });
 });
 
@@ -44,7 +44,7 @@ test('tally: busy and gated panes still count as paired (structure agrees)', () 
   stubHerdr(liveOnePane({ processInfo: { 'live:p1': BUSY } }));
   const t = restore(model([ws(7, 'proj', [tab(1, [pane('a', 0)])])]), { mode: 'rehydrate' }).tally;
   assert.strictEqual(t.paired, 1);
-  assert.strictEqual(t.ratio, 1);
+  assert.strictEqual(t.agreement, 1);
 });
 
 test('tally: a missing workspace contributes all of its panes', () => {
@@ -52,7 +52,7 @@ test('tally: a missing workspace contributes all of its panes', () => {
   const m = model([ws(7, 'proj', [tab(1, [pane('a', 0), pane('b', 1)])])]);
   const t = restore(m, { mode: 'rehydrate' }).tally;
   assert.strictEqual(t.missingWorkspace, 2);
-  assert.strictEqual(t.ratio, 0);
+  assert.strictEqual(t.agreement, 0);
 });
 
 test('tally: a missing tab contributes all of its panes', () => {
@@ -61,7 +61,7 @@ test('tally: a missing tab contributes all of its panes', () => {
   const t = restore(m, { mode: 'rehydrate' }).tally;
   assert.strictEqual(t.missingTab, 2);
   assert.strictEqual(t.paired, 1);
-  assert.ok(Math.abs(t.ratio - 1 / 3) < 1e-9);
+  assert.ok(Math.abs(t.agreement - 1 / 3) < 1e-9);
 });
 
 test('tally: cwd mismatches are counted, not paired', () => {
@@ -69,6 +69,7 @@ test('tally: cwd mismatches are counted, not paired', () => {
   const t = restore(model([ws(7, 'proj', [tab(1, [pane('a', 0)])])]), { mode: 'rehydrate' }).tally;
   assert.strictEqual(t.cwdMismatch, 1);
   assert.strictEqual(t.paired, 0);
+  assert.strictEqual(t.agreement, 1); // the pane is still there: a `cd` must not veto the restore
 });
 
 test('tally: dry run reports the same structure as a real run would', () => {
@@ -79,11 +80,11 @@ test('tally: dry run reports the same structure as a real run would', () => {
   assert.deepStrictEqual(dry, wet);
 });
 
-test('tally: an empty model has ratio 1 (nothing to disagree about)', () => {
+test('tally: an empty model has agreement 1 (nothing to disagree about)', () => {
   stubHerdr({ snapshot: { workspaces: [] }, tabs: [], panes: [] });
   const t = restore(model([]), { mode: 'rehydrate' }).tally;
   assert.strictEqual(t.savedPanes, 0);
-  assert.strictEqual(t.ratio, 1);
+  assert.strictEqual(t.agreement, 1);
 });
 
 test('tally: only rehydrate mode reports one — recreate would count panes it just made', () => {

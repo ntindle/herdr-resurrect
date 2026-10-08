@@ -4,13 +4,11 @@
 // offline, no live server. The fake logs every invocation to HERDR_FAKE_LOG so
 // tests can assert what was actually executed, not just what was printed.
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
-const { assert, test } = require('./helpers');
+const { assert, test, fakeHerdrEnv } = require('./helpers');
+const { fileStamp } = require('../lib/snapshot');
 
 const HOOK = path.join(__dirname, '..', 'bin', 'on-startup.js');
-const FAKE = path.join(__dirname, 'fake-herdr.js');
 
 const CWD = '/home/u/proj';
 
@@ -41,51 +39,22 @@ const model = (paneCount, savedAt) => ({
 });
 
 function hookEnv() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hr-hook-'));
-  const state = path.join(dir, 'state');
-  const config = path.join(dir, 'config');
-  // No HERDR_SOCKET_PATH / HERDR_SESSION in the hook's env -> the default session.
-  const sessionDir = path.join(state, 'sessions', 'default');
-  const snapshots = path.join(sessionDir, 'snapshots');
-  fs.mkdirSync(snapshots, { recursive: true });
-  fs.mkdirSync(config, { recursive: true });
-
-  // On Windows CreateProcess can't run a .js via shebang; go through a .cmd shim.
-  let bin = FAKE;
-  if (process.platform === 'win32') {
-    bin = path.join(dir, 'fake-herdr.cmd');
-    fs.writeFileSync(bin, `@node "${FAKE}" %*\r\n`);
-  }
-  const fakeLog = path.join(dir, 'herdr-calls.log');
-
+  const h = fakeHerdrEnv();
   return {
-    state,
-    snapshots,
-    fakeLog,
-    calls() { try { return fs.readFileSync(fakeLog, 'utf8'); } catch { return ''; } },
+    snapshots: h.snapshots,
+    calls: h.calls,
     run(settings, lastModel, liveFixture) {
-      fs.writeFileSync(path.join(config, 'settings.json'), JSON.stringify(settings));
+      fs.writeFileSync(path.join(h.config, 'settings.json'), JSON.stringify(settings));
       if (lastModel) {
-        fs.writeFileSync(path.join(sessionDir, 'last.json'), JSON.stringify(lastModel));
+        fs.writeFileSync(path.join(h.sessionDir, 'last.json'), JSON.stringify(lastModel));
         // The timestamped twin save() would have written alongside last.json.
         const t = Date.parse(lastModel.saved_at);
         if (Number.isFinite(t)) {
-          const stamp = new Date(t).toISOString().replace(/[-:]/g, '').replace('T', '-').replace(/\..*$/, '');
-          fs.writeFileSync(path.join(snapshots, `snapshot-${stamp}.json`), JSON.stringify(lastModel));
+          const file = `snapshot-${fileStamp(new Date(t).toISOString())}.json`;
+          fs.writeFileSync(path.join(h.snapshots, file), JSON.stringify(lastModel));
         }
       }
-      const fixture = path.join(dir, 'live.json');
-      fs.writeFileSync(fixture, JSON.stringify(liveFixture || liveSession(1)));
-      const env = { ...process.env };
-      for (const k of Object.keys(env)) if (k.startsWith('HERDR_')) delete env[k];
-      Object.assign(env, {
-        HERDR_PLUGIN_STATE_DIR: state,
-        HERDR_PLUGIN_CONFIG_DIR: config,
-        HERDR_BIN_PATH: bin,
-        HERDR_FAKE_FIXTURE: fixture,
-        HERDR_FAKE_LOG: fakeLog,
-      });
-      return spawnSync(process.execPath, [HOOK], { encoding: 'utf8', env });
+      return h.run(HOOK, liveFixture || liveSession(1));
     },
   };
 }
