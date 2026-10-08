@@ -14,7 +14,8 @@
     "save": "node bin/save.js",
     "restore": "node bin/restore.js",
     "restore:dry": "node bin/restore.js --dry-run",
-    "list": "node bin/list.js"
+    "list": "node bin/list.js",
+    "test": "node test/run.js"
   },
   "keywords": ["herdr", "herdr-plugin", "tmux-resurrect", "session", "restore", "crash-recovery"]
 }
