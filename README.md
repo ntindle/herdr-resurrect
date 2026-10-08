@@ -182,10 +182,14 @@ per-pane plan and the exact snapshot file to apply manually. The check compares
 structure, not clocks, so it is immune to how long the machine was off and to
 quiet sessions; a changed directory alone never blocks the restore (that pane's
 fill is skipped individually instead). Above the threshold it fills idle panes
-only: auto-restore never creates panes, tabs, or workspaces. Startup hooks also
-fire on live handoff (in-place server upgrade); that's a natural no-op — the
-save agrees fully, every pane is still running its program, nothing is created,
-and focus is left alone when nothing ran. It's off by default so it never
+only: auto-restore never creates panes, tabs, or workspaces. A restored shell
+that still reads as busy because its rc file is loading gets up to 2 s, shared
+across the whole run, to reach its prompt. While the hook runs, both the event
+autosave and the autosave pane stand down so neither can overwrite the snapshot
+mid-restore. Startup hooks also fire on live handoff (in-place server upgrade);
+that's a natural no-op — the save agrees fully, every pane is still running its
+program (costing at most that one 2 s wait), nothing is created, and focus is
+left alone when nothing ran. It's off by default so it never
 surprises you (tmux-continuum's auto-restore is opt-in too).
 
 ### Agent resume

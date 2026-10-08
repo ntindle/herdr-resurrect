@@ -160,3 +160,78 @@ test('auto mode still recreates a missing workspace (manual crash recovery)', ()
   assert.strictEqual(named(calls, 'splitPane').length, 3); // 4 panes = root + 3 splits
   assert.strictEqual(named(calls, 'runInPane').length, 3); // nvim + 2 agents; idle pane stays bare
 });
+
+test('focus follows the id-first pairing, not the saved workspace number', () => {
+  // herdr preserved the id "wG" but the workspace moved from #7 to #2; an
+  // unrelated workspace now sits at #7. Focus must land on wG, never on #7.
+  const live = {
+    snapshot: { workspaces: [
+      { workspace_id: 'wG', number: 2, label: 'proj' },
+      { workspace_id: 'other', number: 7, label: 'scratch' },
+    ] },
+    tabs: [{ tab_id: 'wG:t1', workspace_id: 'wG', number: 1 }],
+    panes: [{ pane_id: 'wG:pR', tab_id: 'wG:t1', workspace_id: 'wG', cwd: CWD }],
+  };
+  const m = incidentModel();
+  m.workspaces[0].tabs[0].panes = m.workspaces[0].tabs[0].panes.slice(0, 1);
+  m.focused = { workspace_id: 'wG' };
+  const calls = stubHerdr(live);
+  restore(m, { mode: 'rehydrate' });
+  assert.strictEqual(named(calls, 'runInPane').length, 1);
+  assert.deepStrictEqual(named(calls, 'focusWorkspace').map((c) => c.args[0]), ['wG']);
+});
+
+test('recreate focuses the workspace it just created', () => {
+  const live = { snapshot: { workspaces: [{ workspace_id: 'other', number: 7, label: 'scratch' }] } };
+  const m = incidentModel();
+  m.workspaces[0].tabs[0].panes = m.workspaces[0].tabs[0].panes.slice(0, 1);
+  m.focused = { workspace_id: 'wG' };
+  const calls = stubHerdr(live);
+  restore(m, { mode: 'recreate' });
+  const created = named(calls, 'createWorkspace');
+  assert.strictEqual(created.length, 1);
+  const focus = named(calls, 'focusWorkspace').map((c) => c.args[0]);
+  assert.strictEqual(focus.length, 1);
+  assert.ok(focus[0].startsWith('ws-new:'), `expected the new workspace, got ${focus[0]}`);
+});
+
+// Saved tab of `n` nvim panes, and a live tab whose panes pair with them 1:1.
+function idleWaitFixture(n) {
+  const m = incidentModel();
+  m.workspaces[0].tabs[0].panes = Array.from({ length: n }, (_, i) => ({
+    pane_id: `wG:p${i}`, index: i, cwd: CWD, rect: { x: 0, y: 40 * i, width: 80, height: 40 },
+    command: { name: 'nvim', argv: ['nvim', '.'], cmdline: 'nvim .', cwd: CWD, restorable: true },
+  }));
+  const live = {
+    snapshot: { workspaces: [{ workspace_id: 'live:wG', number: 7, label: 'proj' }] },
+    tabs: [{ tab_id: 'live:t1', workspace_id: 'live:wG', number: 1 }],
+    panes: Array.from({ length: n }, (_, i) =>
+      ({ pane_id: `live:p${i}`, tab_id: 'live:t1', workspace_id: 'live:wG', cwd: CWD })),
+  };
+  return { m, live };
+}
+
+test('waitIdleMs: a restored shell still running its rc is filled once it reaches the prompt', () => {
+  const herdr = require('../lib/herdr');
+  for (const [waitIdleMs, expectRuns] of [[0, 0], [2000, 1]]) {
+    const { m, live } = idleWaitFixture(1);
+    const calls = stubHerdr(live);
+    let polls = 0;
+    herdr.processInfo = () => (++polls <= 2 ? BUSY : null); // busy for two checks, then idle
+    restore(m, { mode: 'rehydrate', waitIdleMs });
+    assert.strictEqual(named(calls, 'runInPane').length, expectRuns, `waitIdleMs=${waitIdleMs}`);
+  }
+});
+
+test('waitIdleMs: the budget is shared, so all-busy panes (live handoff) cost it once', () => {
+  const herdr = require('../lib/herdr');
+  const { m, live } = idleWaitFixture(4);
+  const calls = stubHerdr(live);
+  herdr.processInfo = () => BUSY; // every pane genuinely busy
+  const t0 = Date.now();
+  const res = restore(m, { mode: 'rehydrate', waitIdleMs: 300 });
+  const elapsed = Date.now() - t0;
+  assert.strictEqual(named(calls, 'runInPane').length, 0);
+  assert.strictEqual(actionsOf(res, 'skip').length, 4);
+  assert.ok(elapsed < 4 * 300, `4 busy panes took ${elapsed}ms — the wait is not shared`);
+});

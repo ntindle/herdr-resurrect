@@ -24,6 +24,10 @@ const { save, fileStamp } = require('../lib/snapshot');
 const { loadModel, restore } = require('../lib/restore');
 const { SNAP_DIR, PLUGIN_ROOT } = require('../lib/paths');
 
+// Total time the rehydrate may spend waiting for restored shells that are still
+// initializing (slow rc files) to reach their prompt; see waitIdleMs in lib/restore.
+const WAIT_IDLE_MS = 2000;
+
 // Absolute path of the timestamped snapshot that mirrors this model, or null when
 // saved_at is unusable or the file is already gone (pruned).
 function refusedSnapshotPath(model) {
@@ -88,13 +92,19 @@ async function main() {
       }
     }
 
-    const res = restore(model, { mode: 'rehydrate', log: (l) => console.log('[auto-restore] ' + l) });
+    gate.start(); // refresh again: the dry run above may have been slow
+    const res = restore(model, {
+      mode: 'rehydrate',
+      waitIdleMs: WAIT_IDLE_MS,
+      log: (l) => console.log('[auto-restore] ' + l),
+    });
     console.log(`herdr-resurrect: auto-restore ran ${res.actions.length} action(s) on startup`);
     notify.restored(res, { auto: true });
   } catch (e) {
     console.error('herdr-resurrect auto-restore failed:', e.message);
     notify.restoreFailed(e, { auto: true });
   } finally {
+    gate.start(); // keep autosave down through the final save, however long the restore took
     try { save(); } catch { /* refresh the snapshot now that panes are filled */ }
     gate.clear();
   }
