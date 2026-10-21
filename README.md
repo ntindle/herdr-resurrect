@@ -183,6 +183,30 @@ herdr's own `resume_agents_on_restore` may still rejoin the session). Agents are
 relaunched by short name (`claude`) so they run in both PowerShell and POSIX shells.
 Override per agent via `agentResumeCommands` in `settings.json`.
 
+An override can also name the command that owns the pane's environment:
+
+- `bin` — command on PATH to relaunch (default: the agent short name).
+- `match` — regex tested against the captured `cmdline`; the override applies only
+  to panes whose command line matches, so the plain agent keeps the default relaunch.
+
+That covers wrappers such as Gentle Shell, which runs Pi in its own home and forwards
+unknown flags to it:
+
+```json
+"agentResumeCommands": {
+  "pi": {
+    "bin": "gentle-shell",
+    "resume": "--session {value}",
+    "continue": "",
+    "match": "gentle-shell\\.mjs"
+  }
+}
+```
+
+A Gentle Shell pane then restores as `gentle-shell --session <path>` (or plain
+`gentle-shell` when the snapshot has no session ref), while a plain `pi` pane, whose
+cmdline does not match, keeps the default path.
+
 ## How restore decides (modes)
 
 | Mode | Flag | Behavior |
@@ -204,7 +228,7 @@ Override per agent via `agentResumeCommands` in `settings.json`.
 | `autoRestore` | `false` | rehydrate automatically on the first event after a server (re)start |
 | `autoRestoreSettleMs` | `2500` | wait this long after the first boot event before rehydrating |
 | `agentResume` | `true` | use agent CLI resume/continue flags when relaunching agents |
-| `agentResumeCommands` | `{}` | per-agent overrides, e.g. `{ "claude": { "continue": "--continue" } }` |
+| `agentResumeCommands` | `{}` | per-agent overrides, e.g. `{ "claude": { "continue": "--continue" } }`; optional `bin`/`match` for wrappers |
 | `notify` | all `false` | herdr toasts per trigger: `{ "onSave": …, "onAutoSave": …, "onRestore": … }` (see Toasts) |
 
 `HERDR_RESURRECT_AUTO_RESTORE=1` overrides `autoRestore` without editing the file.
