@@ -4,10 +4,17 @@
 // every HERDR_RESURRECT_INTERVAL seconds and once more on exit. Keep this pane open.
 const { save } = require('../lib/snapshot');
 const notify = require('../lib/notify');
+const gate = require('../lib/gate');
 
 const INTERVAL = Math.max(30, Number(process.env.HERDR_RESURRECT_INTERVAL || 900)) * 1000;
 
 function tick(reason) {
+  // Same stand-down as the event hooks: a save while the startup hook rehydrates
+  // would replace the pre-boot snapshot with the half-restored session.
+  if (gate.active()) {
+    console.log(`[${new Date().toLocaleTimeString()}] ${reason}: skipped, startup restore in progress`);
+    return;
+  }
   try {
     const r = save();
     console.log(`[${new Date().toLocaleTimeString()}] ${reason}: ${r.panes} pane(s), ${r.commands} cmd, ${r.agents} agent -> ${r.file.split(/[\\/]/).pop()}`);
